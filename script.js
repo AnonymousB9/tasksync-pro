@@ -1,6 +1,6 @@
 // Hardcoded Supabase Credentials
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://jakcecrvtwbwyhdaqqqf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impha2NlY3J2dHdid3loZGFxcXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNDY4MDUsImV4cCI6MjEwNzYyMjgwNX0.xGHT1b8kBCjFlijmoRXR2mHn5c7N5ZalXcrqZ0REAxg';
 
 let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
