@@ -325,3 +325,61 @@ function showToast(message, type = 'info') {
 function escapeHtml(str) {
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
+async function openNewTaskModal() {
+    document.getElementById('task-form').reset();
+    document.getElementById('task-date').valueAsDate = new Date();
+    
+    const assigneeSelectGroup = document.getElementById('task-assignee').closest('.form-group');
+
+    if (userProfile.role === 'assignee') {
+        // Hide the assignee select dropdown for assignees since they are assigning it to themselves
+        assigneeSelectGroup.style.display = 'none';
+    } else {
+        assigneeSelectGroup.style.display = 'block';
+        if (allAssignees.length === 0) {
+            showToast('No assignees available in the system yet.', 'error');
+            return;
+        }
+        const select = document.getElementById('task-assignee');
+        select.innerHTML = allAssignees.map(a => `<option value="${a.id}">${a.username}</option>`).join('');
+    }
+
+    document.getElementById('task-modal').style.display = 'flex';
+}
+
+document.getElementById('task-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('task-title').value;
+    const description = document.getElementById('task-desc').value;
+    const schedule_date = document.getElementById('task-date').value;
+
+    let assignee_id;
+    let manager_id;
+
+    if (userProfile.role === 'assignee') {
+        assignee_id = currentUser.id;
+        // If assignee creates it for themselves, we can set manager_id to themselves or a system ID, 
+        // but let's set manager_id to currentUser.id so RLS policy passes.
+        manager_id = currentUser.id; 
+    } else {
+        assignee_id = document.getElementById('task-assignee').value;
+        manager_id = currentUser.id;
+    }
+
+    const { error } = await supabaseClient.from('tasks').insert([{
+        title,
+        description,
+        schedule_date,
+        assignee_id,
+        manager_id,
+        status: 'pending'
+    }]);
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Task created successfully!', 'success');
+        closeNewTaskModal();
+        await loadTasks();
+    }
+});
