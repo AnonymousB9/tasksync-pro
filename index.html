@@ -117,12 +117,15 @@
                     </div>
                 </div>
 
-                <!-- Tasks Card -->
+                <!-- Tasks Card with Assignee Filter Dropdown -->
                 <div class="card">
                     <div class="card-header">
-                        <h3>Assigned Schedule & To-Do Items</h3>
-                        <div class="filter-group">
-                            <input type="text" id="mgr-search" placeholder="Search tasks..." oninput="renderManagerTasks()">
+                        <h3>Team Schedule & To-Do Items</h3>
+                        <div class="filter-group" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <select id="mgr-assignee-filter" onchange="onManagerAssigneeFilterChange()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); outline: none;">
+                                <option value="">-- View All Team Tasks --</option>
+                            </select>
+                            <input type="text" id="mgr-search" placeholder="Search tasks..." oninput="renderManagerTasks()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); outline: none;">
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -146,7 +149,10 @@
                 <!-- Timetable Management Card -->
                 <div class="card mt-20">
                     <div class="card-header">
-                        <h3>Routine Timetable (Weekday & Weekend)</h3>
+                        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                            <h3>Routine Timetable</h3>
+                            <span class="badge" id="viewing-user-badge" style="background: #e0e7ff; color: var(--primary);">Viewing Self</span>
+                        </div>
                         <button class="btn btn-primary btn-sm" onclick="openTimetableModal()"><i class="fa-solid fa-plus"></i> Add Slot</button>
                     </div>
                     <div class="tabs timetable-tabs">
@@ -266,7 +272,7 @@
                     <label>Schedule Date</label>
                     <input type="date" id="task-date" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="task-assignee-group">
                     <label>Assignee</label>
                     <select id="task-assignee" required>
                         <!-- Loaded dynamically -->

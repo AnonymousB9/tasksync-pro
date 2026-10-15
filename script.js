@@ -7,6 +7,7 @@ let currentUser = null;
 let userProfile = null;
 let allTasks = [];
 let allAssignees = [];
+let selectedAssigneeId = null;
 let currentTimetableTab = 'weekday';
 let allTimetableSlots = [];
 
@@ -20,15 +21,10 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
-    // Auth Forms
     document.getElementById('login-form')?.addEventListener('submit', handleLogin);
     document.getElementById('register-form')?.addEventListener('submit', handleRegister);
     document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
-
-    // Task Form
     document.getElementById('task-form')?.addEventListener('submit', handleTaskSubmit);
-
-    // Timetable Form
     document.getElementById('timetable-form')?.addEventListener('submit', handleTimetableSubmit);
 }
 
@@ -142,6 +138,7 @@ async function handleLogout() {
     await supabaseClient.auth.signOut();
     currentUser = null;
     userProfile = null;
+    selectedAssigneeId = null;
     showAuthView();
     showToast('Logged out', 'info');
 }
@@ -175,9 +172,29 @@ async function loadAssignees() {
         .from('profiles')
         .select('*')
         .eq('role', 'assignee');
+    
     if (data) {
         allAssignees = data;
+        const filterSelect = document.getElementById('mgr-assignee-filter');
+        if (filterSelect) {
+            filterSelect.innerHTML = `<option value="">-- View All Team Tasks --</option>` + 
+                data.map(a => `<option value="${a.id}">@${a.username}'s Schedule & To-Dos</option>`).join('');
+        }
     }
+}
+
+async function onManagerAssigneeFilterChange() {
+    selectedAssigneeId = document.getElementById('mgr-assignee-filter').value;
+    
+    if (selectedAssigneeId) {
+        const assigneeObj = allAssignees.find(a => a.id === selectedAssigneeId);
+        document.getElementById('viewing-user-badge').textContent = `Viewing @${assigneeObj ? assigneeObj.username : 'Assignee'}`;
+    } else {
+        document.getElementById('viewing-user-badge').textContent = `Viewing Self`;
+    }
+
+    await loadTasks();
+    await loadTimetables();
 }
 
 async function loadTasks() {
@@ -197,8 +214,16 @@ async function loadTasks() {
 }
 
 function renderManagerTasks() {
-    const search = document.getElementById('mgr-search').value.toLowerCase();
-    const filtered = allTasks.filter(t => t.title.toLowerCase().includes(search) || (t.assignee && t.assignee.username.toLowerCase().includes(search)));
+    let filtered = allTasks;
+
+    if (selectedAssigneeId) {
+        filtered = filtered.filter(t => t.assignee_id === selectedAssigneeId);
+    }
+
+    const search = document.getElementById('mgr-search')?.value.toLowerCase() || '';
+    if (search) {
+        filtered = filtered.filter(t => t.title.toLowerCase().includes(search) || (t.assignee && t.assignee.username.toLowerCase().includes(search)));
+    }
 
     const tbody = document.getElementById('mgr-task-list');
     document.getElementById('mgr-total-tasks').textContent = allTasks.length;
@@ -288,14 +313,14 @@ async function deleteTask(taskId) {
 function openNewTaskModal() {
     document.getElementById('task-form').reset();
     document.getElementById('task-date').valueAsDate = new Date();
-    const assigneeSelectGroup = document.getElementById('task-assignee').closest('.form-group');
+    const assigneeGroup = document.getElementById('task-assignee-group');
 
     if (userProfile.role === 'assignee') {
-        assigneeSelectGroup.style.display = 'none';
+        assigneeGroup.style.display = 'none';
     } else {
-        assigneeSelectGroup.style.display = 'block';
+        assigneeGroup.style.display = 'block';
         const select = document.getElementById('task-assignee');
-        select.innerHTML = allAssignees.map(a => `<option value="${a.id}">${a.username}</option>`).join('');
+        select.innerHTML = allAssignees.map(a => `<option value="${a.id}">@${a.username}</option>`).join('');
     }
 
     document.getElementById('task-modal').style.display = 'flex';
@@ -335,10 +360,12 @@ async function handleTaskSubmit(e) {
 // --- TIMETABLE FUNCTIONS ---
 
 async function loadTimetables() {
+    const targetUserId = (userProfile.role === 'manager' && selectedAssigneeId) ? selectedAssigneeId : currentUser.id;
+
     const { data, error } = await supabaseClient
         .from('timetables')
         .select('*')
-        .eq('user_id', currentUser.id)
+        .eq('user_id', targetUserId)
         .order('time_slot', { ascending: true });
 
     if (error) {
