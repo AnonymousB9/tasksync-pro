@@ -1,0 +1,333 @@
+let supabaseClient = null;
+let currentUser = null;
+let userProfile = null;
+let allTasks = [];
+let allAssignees = [];
+
+// Initialize Supabase from localStorage or prompt
+function initSupabase() {
+    const url = localStorage.getItem('sb_url');
+    const key = localStorage.getItem('sb_key');
+    if (url && key) {
+        try {
+            supabaseClient = window.supabase.createClient(url, key);
+            document.getElementById('config-modal').style.display = 'none';
+            document.getElementById('app').classList.remove('hidden');
+            checkUserSession();
+        } catch (e) {
+            console.error("Failed to initialize Supabase:", e);
+            document.getElementById('config-modal').style.display = 'flex';
+        }
+    } else {
+        document.getElementById('config-modal').style.display = 'flex';
+    }
+}
+
+document.getElementById('config-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const url = document.getElementById('supabase-url').value.trim();
+    const key = document.getElementById('supabase-key').value.trim();
+    localStorage.setItem('sb_url', url);
+    localStorage.setItem('sb_key', key);
+    initSupabase();
+});
+
+function openConfigModal() {
+    document.getElementById('supabase-url').value = localStorage.getItem('sb_url') || '';
+    document.getElementById('supabase-key').value = localStorage.getItem('sb_key') || '';
+    document.getElementById('config-modal').style.display = 'flex';
+}
+
+async function checkUserSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+        currentUser = session.user;
+        await fetchUserProfile();
+    } else {
+        showAuthView();
+    }
+}
+
+async function fetchUserProfile() {
+    const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+
+    if (data) {
+        userProfile = data;
+        updateSidebarUser();
+        if (userProfile.role === 'manager') {
+            showManagerDashboard();
+        } else {
+            showAssigneeDashboard();
+        }
+    } else {
+        await supabaseClient.auth.signOut();
+        showAuthView();
+    }
+}
+
+function showAuthView() {
+    document.getElementById('auth-view').classList.remove('hidden');
+    document.getElementById('manager-view').classList.add('hidden');
+    document.getElementById('assignee-view').classList.add('hidden');
+}
+
+function switchAuthTab(tab) {
+    const btns = document.querySelectorAll('.tab-btn');
+    btns.forEach(b => b.classList.remove('active'));
+    if (tab === 'login') {
+        btns[0].classList.add('active');
+        document.getElementById('login-form').classList.remove('hidden');
+        document.getElementById('register-form').classList.add('hidden');
+    } else {
+        btns[1].classList.add('active');
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('register-form').classList.remove('hidden');
+    }
+}
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        currentUser = data.user;
+        showToast('Logged in successfully!', 'success');
+        await fetchUserProfile();
+    }
+});
+
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('reg-email').value;
+    const password = document.getElementById('reg-password').value;
+    const role = document.getElementById('reg-role').value;
+
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) {
+        showToast(error.message, 'error');
+        return;
+    }
+
+    if (data.user) {
+        const { error: profileError } = await supabaseClient.from('profiles').insert([
+            { id: data.user.id, email: email, role: role }
+        ]);
+
+        if (profileError) {
+            showToast(profileError.message, 'error');
+        } else {
+            showToast('Account created successfully!', 'success');
+            currentUser = data.user;
+            await fetchUserProfile();
+        }
+    }
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
+    currentUser = null;
+    userProfile = null;
+    showAuthView();
+    showToast('Logged out', 'info');
+});
+
+function updateSidebarUser() {
+    if (!userProfile) return;
+    document.getElementById('user-email-display').textContent = userProfile.email;
+    document.getElementById('user-role-badge').textContent = userProfile.role.toUpperCase();
+    document.getElementById('user-avatar').textContent = userProfile.email.charAt(0).toUpperCase();
+}
+
+async function showManagerDashboard() {
+    document.getElementById('auth-view').classList.add('hidden');
+    document.getElementById('assignee-view').classList.add('hidden');
+    document.getElementById('manager-view').classList.remove('hidden');
+    await loadAssignees();
+    await loadTasks();
+}
+
+async function loadAssignees() {
+    const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('role', 'assignee');
+    if (data) {
+        allAssignees = data;
+        const select = document.getElementById('task-assignee');
+        select.innerHTML = data.map(a => `<option value="${a.id}">${a.email}</option>`).join('');
+    }
+}
+
+async function loadTasks() {
+    const { data, error } = await supabaseClient
+        .from('tasks')
+        .select('*, assignee:assignee_id(email), manager:manager_id(email)')
+        .order('schedule_date', { ascending: true });
+
+    if (data) {
+        allTasks = data;
+        if (userProfile.role === 'manager') {
+            renderManagerTasks();
+        } else {
+            renderAssigneeTasks();
+        }
+    }
+}
+
+function renderManagerTasks() {
+    const search = document.getElementById('mgr-search').value.toLowerCase();
+    const filtered = allTasks.filter(t => t.title.toLowerCase().includes(search) || (t.assignee && t.assignee.email.toLowerCase().includes(search)));
+
+    const tbody = document.getElementById('mgr-task-list');
+    document.getElementById('mgr-total-tasks').textContent = allTasks.length;
+    document.getElementById('mgr-completed-tasks').textContent = allTasks.filter(t => t.status === 'completed').length;
+    document.getElementById('mgr-pending-tasks').textContent = allTasks.filter(t => t.status === 'pending').length;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center">No tasks found.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(t => `
+        <tr>
+            <td>
+                <strong>${escapeHtml(t.title)}</strong>
+                <div class="text-muted small">${escapeHtml(t.description || '')}</div>
+            </td>
+            <td>${t.schedule_date}</td>
+            <td>${t.assignee ? t.assignee.email : 'Unknown'}</td>
+            <td>
+                <span class="status-badge ${t.status}">${t.status.toUpperCase()}</span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="deleteTask('${t.id}')"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function showAssigneeDashboard() {
+    document.getElementById('auth-view').classList.add('hidden');
+    document.getElementById('manager-view').classList.add('hidden');
+    document.getElementById('assignee-view').classList.remove('hidden');
+    await loadTasks();
+}
+
+function renderAssigneeTasks() {
+    const myTasks = allTasks.filter(t => t.assignee_id === currentUser.id);
+    const tbody = document.getElementById('asg-task-list');
+
+    document.getElementById('asg-total-tasks').textContent = myTasks.length;
+    document.getElementById('asg-completed-tasks').textContent = myTasks.filter(t => t.status === 'completed').length;
+
+    if (myTasks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center">No tasks assigned to you yet.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = myTasks.map(t => `
+        <tr>
+            <td>
+                <strong>${escapeHtml(t.title)}</strong>
+                <div class="text-muted small">${escapeHtml(t.description || '')}</div>
+            </td>
+            <td>${t.schedule_date}</td>
+            <td>${t.manager ? t.manager.email : 'Manager'}</td>
+            <td>
+                <span class="status-badge ${t.status}">${t.status.toUpperCase()}</span>
+            </td>
+            <td>
+                ${t.status === 'pending' 
+                    ? `<button class="btn btn-sm btn-success" onclick="toggleTaskStatus('${t.id}', 'completed')"><i class="fa-solid fa-check"></i> Mark Done</button>` 
+                    : `<button class="btn btn-sm btn-outline" onclick="toggleTaskStatus('${t.id}', 'pending')"><i class="fa-solid fa-rotate-left"></i> Reopen</button>`}
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function toggleTaskStatus(taskId, newStatus) {
+    const { error } = await supabaseClient
+        .from('tasks')
+        .update({ status: newStatus })
+        .eq('id', taskId);
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast(`Task marked as ${newStatus}!`, 'success');
+        await loadTasks();
+    }
+}
+
+async function deleteTask(taskId) {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+    const { error } = await supabaseClient.from('tasks').delete().eq('id', taskId);
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Task deleted', 'success');
+        await loadTasks();
+    }
+}
+
+function openNewTaskModal() {
+    if (allAssignees.length === 0) {
+        showToast('No assignees available in the system yet.', 'error');
+        return;
+    }
+    document.getElementById('task-form').reset();
+    document.getElementById('task-date').valueAsDate = new Date();
+    document.getElementById('task-modal').style.display = 'flex';
+}
+
+function closeNewTaskModal() {
+    document.getElementById('task-modal').style.display = 'none';
+}
+
+document.getElementById('task-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('task-title').value;
+    const description = document.getElementById('task-desc').value;
+    const schedule_date = document.getElementById('task-date').value;
+    const assignee_id = document.getElementById('task-assign-assignee').value; // mapped correctly
+
+    const { error } = await supabaseClient.from('tasks').insert([{
+        title,
+        description,
+        schedule_date,
+        assignee_id,
+        manager_id: currentUser.id,
+        status: 'pending'
+    }]);
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Task assigned successfully!', 'success');
+        closeNewTaskModal();
+        await loadTasks();
+    }
+});
+
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = `toast show ${type}`;
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3500);
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+window.addEventListener('DOMContentLoaded', initSupabase);

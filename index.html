@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskSync Pro - Schedule & To-Do Manager</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Config / Setup Modal for Supabase Credentials -->
+    <div id="config-modal" class="modal">
+        <div class="modal-content">
+            <h2><i class="fa-solid fa-database"></i> Connect Supabase Database</h2>
+            <p>Enter your Supabase credentials to connect this app to your backend database.</p>
+            <form id="config-form">
+                <div class="form-group">
+                    <label for="supabase-url">Supabase Project URL</label>
+                    <input type="url" id="supabase-url" placeholder="https://xyzcompany.supabase.co" required>
+                </div>
+                <div class="form-group">
+                    <label for="supabase-key">Supabase Anon Key</label>
+                    <input type="password" id="supabase-key" placeholder="eyJhbGciOi..." required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Save & Connect</button>
+            </form>
+            <div class="sql-instructions">
+                <h3><i class="fa-solid fa-code"></i> Required Database Setup (Run in Supabase SQL Editor):</h3>
+                <pre><code>-- 1. Profiles Table
+CREATE TABLE profiles (
+    id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    role TEXT CHECK (role IN ('manager', 'assignee')) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 2. Tasks Table
+CREATE TABLE tasks (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    schedule_date DATE NOT NULL,
+    assignee_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    manager_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    status TEXT CHECK (status IN ('pending', 'completed')) DEFAULT 'pending' NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 3. Enable RLS & Policies
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read profiles" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Allow insert profile on signup" ON profiles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all tasks for authenticated users" ON tasks FOR ALL USING (true);</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Container -->
+    <div id="app" class="app-container hidden">
+        <!-- Sidebar / Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-square-check"></i>
+                <span>TaskSync Pro</span>
+            </div>
+            <div class="user-info">
+                <div class="avatar" id="user-avatar">U</div>
+                <div class="details">
+                    <span id="user-email-display">user@example.com</span>
+                    <span class="badge" id="user-role-badge">Role</span>
+                </div>
+            </div>
+            <nav class="nav-links">
+                <a href="#" class="active" id="nav-dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+                <a href="#" id="nav-settings" onclick="openConfigModal()"><i class="fa-solid fa-gear"></i> Supabase Config</a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="logout-btn" class="btn btn-outline btn-block"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Auth View (Login / Register) -->
+            <div id="auth-view" class="view hidden">
+                <div class="auth-card">
+                    <div class="auth-header">
+                        <h2>Welcome to TaskSync Pro</h2>
+                        <p>Manage schedules and follow up tasks effortlessly.</p>
+                    </div>
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchAuthTab('login')">Login</button>
+                        <button class="tab-btn" onclick="switchAuthTab('register')">Register</button>
+                    </div>
+                    
+                    <!-- Login Form -->
+                    <form id="login-form" class="auth-form">
+                        <div class="form-group">
+                            <label>Email Address</label>
+                            <input type="email" id="login-email" required placeholder="name@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="login-password" required placeholder="••••••••">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+                    </form>
+
+                    <!-- Register Form -->
+                    <form id="register-form" class="auth-form hidden">
+                        <div class="form-group">
+                            <label>Email Address</label>
+                            <input type="email" id="reg-email" required placeholder="name@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="reg-password" required placeholder="••••••••">
+                        </div>
+                        <div class="form-group">
+                            <label>I am a:</label>
+                            <select id="reg-role" required>
+                                <option value="manager">Manager (Assign schedules & to-do lists)</option>
+                                <option value="assignee">Assignee (Receive & confirm completed tasks)</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Manager Dashboard View -->
+            <div id="manager-view" class="view hidden">
+                <header class="content-header">
+                    <div>
+                        <h1>Manager Dashboard</h1>
+                        <p>Assign schedules, set to-do items, and monitor team progress.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="openNewTaskModal()"><i class="fa-solid fa-plus"></i> Assign New Task</button>
+                </header>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-blue"><i class="fa-solid fa-list-check"></i></div>
+                        <div class="stat-info">
+                            <h3 id="mgr-total-tasks">0</h3>
+                            <p>Total Assigned</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon bg-green"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="stat-info">
+                            <h3 id="mgr-completed-tasks">0</h3>
+                            <p>Completed</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon bg-orange"><i class="fa-solid fa-clock"></i></div>
+                        <div class="stat-info">
+                            <h3 id="mgr-pending-tasks">0</h3>
+                            <p>Pending Confirmation</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Assigned Schedule & To-Do Items</h3>
+                        <div class="filter-group">
+                            <input type="text" id="mgr-search" placeholder="Search tasks..." oninput="renderManagerTasks()">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Task Title</th>
+                                    <th>Schedule Date</th>
+                                    <th>Assignee</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mgr-task-list">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assignee Dashboard View -->
+            <div id="assignee-view" class="view hidden">
+                <header class="content-header">
+                    <div>
+                        <h1>My To-Do & Schedule</h1>
+                        <p>Review your assigned tasks and confirm completion.</p>
+                    </div>
+                </header>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-blue"><i class="fa-solid fa-calendar-day"></i></div>
+                        <div class="stat-info">
+                            <h3 id="asg-total-tasks">0</h3>
+                            <p>Assigned to Me</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon bg-green"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="stat-info">
+                            <h3 id="asg-completed-tasks">0</h3>
+                            <p>Completed</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Assigned Schedules & Tasks</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Title & Description</th>
+                                    <th>Schedule Date</th>
+                                    <th>Assigned By (Manager)</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="asg-task-list">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- New Task Modal (Manager Only) -->
+    <div id="task-modal" class="modal">
+        <div class="modal-content">
+            <h2>Assign Schedule / To-Do Task</h2>
+            <form id="task-form">
+                <div class="form-group">
+                    <label>Task Title</label>
+                    <input type="text" id="task-title" required placeholder="e.g. Weekly Inventory Audit">
+                </div>
+                <div class="form-group">
+                    <label>Description / Details</label>
+                    <textarea id="task-desc" rows="3" placeholder="Specify instructions or checklist items..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Schedule Date</label>
+                    <input type="date" id="task-date" required>
+                </div>
+                <div class="form-group">
+                    <label>Assignee</label>
+                    <select id="task-assignee" required>
+                        <!-- Loaded dynamically -->
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeNewTaskModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Application Logic Script -->
+    <script src="script.js"></script>
+</body>
+</html>
