@@ -1,4 +1,8 @@
-let supabaseClient = null;
+// Hardcoded Supabase Credentials (users never need to configure anything)
+const SUPABASE_URL = 'https://jakcecrvtwbwyhdaqqqf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impha2NlY3J2dHdid3loZGFxcXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNDY4MDUsImV4cCI6MjEwNzYyMjgwNX0.xGHT1b8kBCjFlijmoRXR2mHn5c7N5ZalXcrqZ0REAxg';
+
+let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let userProfile = null;
 let allTasks = [];
@@ -9,39 +13,10 @@ function usernameToEmail(username) {
     return `${username.trim().toLowerCase()}@app.local`;
 }
 
-// Initialize Supabase
-function initSupabase() {
-    const url = localStorage.getItem('sb_url');
-    const key = localStorage.getItem('sb_key');
-    if (url && key) {
-        try {
-            supabaseClient = window.supabase.createClient(url, key);
-            document.getElementById('config-modal').style.display = 'none';
-            document.getElementById('app').classList.remove('hidden');
-            checkUserSession();
-        } catch (e) {
-            console.error("Failed to initialize Supabase:", e);
-            document.getElementById('config-modal').style.display = 'flex';
-        }
-    } else {
-        document.getElementById('config-modal').style.display = 'flex';
-    }
-}
-
-document.getElementById('config-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const url = document.getElementById('supabase-url').value.trim();
-    const key = document.getElementById('supabase-key').value.trim();
-    localStorage.setItem('sb_url', url);
-    localStorage.setItem('sb_key', key);
-    initSupabase();
+// Initialize App on load
+window.addEventListener('DOMContentLoaded', () => {
+    checkUserSession();
 });
-
-function openConfigModal() {
-    document.getElementById('supabase-url').value = localStorage.getItem('sb_url') || '';
-    document.getElementById('supabase-key').value = localStorage.getItem('sb_key') || '';
-    document.getElementById('config-modal').style.display = 'flex';
-}
 
 async function checkUserSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -350,5 +325,3 @@ function showToast(message, type = 'info') {
 function escapeHtml(str) {
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
-
-window.addEventListener('DOMContentLoaded', initSupabase);

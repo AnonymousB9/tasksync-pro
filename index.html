@@ -11,27 +11,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <!-- Config / Setup Modal for Supabase Credentials -->
-    <div id="config-modal" class="modal">
-        <div class="modal-content">
-            <h2><i class="fa-solid fa-database"></i> Connect Supabase Database</h2>
-            <p>Enter your Supabase credentials to connect this app to your backend database.</p>
-            <form id="config-form">
-                <div class="form-group">
-                    <label for="supabase-url">Supabase Project URL</label>
-                    <input type="url" id="supabase-url" placeholder="https://xyzcompany.supabase.co" required>
-                </div>
-                <div class="form-group">
-                    <label for="supabase-key">Supabase Anon Key</label>
-                    <input type="password" id="supabase-key" placeholder="eyJhbGciOi..." required>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block">Save & Connect</button>
-            </form>
-        </div>
-    </div>
-
     <!-- App Container -->
-    <div id="app" class="app-container hidden">
+    <div id="app" class="app-container">
         <!-- Sidebar / Navigation -->
         <aside class="sidebar">
             <div class="brand">
@@ -47,7 +28,6 @@
             </div>
             <nav class="nav-links">
                 <a href="#" class="active" id="nav-dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
-                <a href="#" id="nav-settings" onclick="openConfigModal()"><i class="fa-solid fa-gear"></i> Supabase Config</a>
             </nav>
             <div class="sidebar-footer">
                 <button id="logout-btn" class="btn btn-outline btn-block"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
