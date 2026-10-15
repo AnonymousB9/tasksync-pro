@@ -30,7 +30,7 @@
                 <a href="#" class="active" id="nav-dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
             </nav>
             <div class="sidebar-footer">
-                <button id="logout-btn" class="btn btn-outline btn-block"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+                <button id="logout-btn" class="btn btn-outline btn-block"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></button>
             </div>
         </aside>
 
@@ -117,6 +117,7 @@
                     </div>
                 </div>
 
+                <!-- Tasks Card -->
                 <div class="card">
                     <div class="card-header">
                         <h3>Assigned Schedule & To-Do Items</h3>
@@ -141,6 +142,32 @@
                         </table>
                     </div>
                 </div>
+
+                <!-- Timetable Management Card -->
+                <div class="card mt-20">
+                    <div class="card-header">
+                        <h3>Routine Timetable (Weekday & Weekend)</h3>
+                        <button class="btn btn-primary btn-sm" onclick="openTimetableModal()"><i class="fa-solid fa-plus"></i> Add Slot</button>
+                    </div>
+                    <div class="tabs timetable-tabs">
+                        <button class="tab-btn active" onclick="switchTimetableTab('weekday')">Weekdays</button>
+                        <button class="tab-btn" onclick="switchTimetableTab('weekend')">Weekends</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time Slot</th>
+                                    <th>Activity / Schedule</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="timetable-list">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <!-- Assignee Dashboard View -->
@@ -148,8 +175,9 @@
                 <header class="content-header">
                     <div>
                         <h1>My To-Do & Schedule</h1>
-                        <p>Review your assigned tasks and confirm completion.</p>
+                        <p>Review your assigned tasks, add personal tasks, and confirm completion.</p>
                     </div>
+                    <button class="btn btn-primary" onclick="openNewTaskModal()"><i class="fa-solid fa-plus"></i> Add Personal Task</button>
                 </header>
 
                 <div class="stats-grid">
@@ -169,6 +197,7 @@
                     </div>
                 </div>
 
+                <!-- Tasks Card -->
                 <div class="card">
                     <div class="card-header">
                         <h3>Assigned Schedules & Tasks</h3>
@@ -184,16 +213,33 @@
                                     <th>Action</th>
                                 </tr>
                             </thead>
-                            <!-- Assignee Dashboard View -->
-            <div id="assignee-view" class="view hidden">
-                <header class="content-header">
-                    <div>
-                        <h1>My To-Do & Schedule</h1>
-                        <p>Review your assigned tasks, add personal tasks, and confirm completion.</p>
-                    </div>
-                    <button class="btn btn-primary" onclick="openNewTaskModal()"><i class="fa-solid fa-plus"></i> Add Personal Task</button>
-                </header>
                             <tbody id="asg-task-list">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Timetable Management Card -->
+                <div class="card mt-20">
+                    <div class="card-header">
+                        <h3>Routine Timetable (Weekday & Weekend)</h3>
+                        <button class="btn btn-primary btn-sm" onclick="openTimetableModal()"><i class="fa-solid fa-plus"></i> Add Slot</button>
+                    </div>
+                    <div class="tabs timetable-tabs">
+                        <button class="tab-btn active" onclick="switchTimetableTab('weekday')">Weekdays</button>
+                        <button class="tab-btn" onclick="switchTimetableTab('weekend')">Weekends</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time Slot</th>
+                                    <th>Activity / Schedule</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="timetable-list">
                                 <!-- Populated dynamically -->
                             </tbody>
                         </table>
@@ -203,7 +249,7 @@
         </main>
     </div>
 
-    <!-- New Task Modal (Manager Only) -->
+    <!-- New Task Modal -->
     <div id="task-modal" class="modal">
         <div class="modal-content">
             <h2>Assign Schedule / To-Do Task</h2>
@@ -228,7 +274,35 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-outline" onclick="closeNewTaskModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Assign Task</button>
+                    <button type="submit" class="btn btn-primary">Save Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Timetable Modal -->
+    <div id="timetable-modal" class="modal">
+        <div class="modal-content">
+            <h2>Add Timetable Slot</h2>
+            <form id="timetable-form">
+                <div class="form-group">
+                    <label>Day Category</label>
+                    <select id="tt-day-type" required>
+                        <option value="weekday">Weekday (Monday - Friday)</option>
+                        <option value="weekend">Weekend (Saturday - Sunday)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Time Slot</label>
+                    <input type="text" id="tt-time" required placeholder="e.g. 08:00 AM - 09:30 AM">
+                </div>
+                <div class="form-group">
+                    <label>Activity Description</label>
+                    <input type="text" id="tt-activity" required placeholder="e.g. Team Standup & Review">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeTimetableModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Slot</button>
                 </div>
             </form>
         </div>
