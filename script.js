@@ -4,7 +4,12 @@ let userProfile = null;
 let allTasks = [];
 let allAssignees = [];
 
-// Initialize Supabase from localStorage or prompt
+// Helper function to map usernames to internal emails
+function usernameToEmail(username) {
+    return `${username.trim().toLowerCase()}@app.local`;
+}
+
+// Initialize Supabase
 function initSupabase() {
     const url = localStorage.getItem('sb_url');
     const key = localStorage.getItem('sb_key');
@@ -89,14 +94,16 @@ function switchAuthTab(tab) {
     }
 }
 
+// Login Event Listener
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('login-email').value;
+    const username = document.getElementById('login-username').value;
+    const email = usernameToEmail(username);
     const password = document.getElementById('login-password').value;
 
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) {
-        showToast(error.message, 'error');
+        showToast("Invalid username or password", 'error');
     } else {
         currentUser = data.user;
         showToast('Logged in successfully!', 'success');
@@ -104,11 +111,25 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
 });
 
+// Register Event Listener
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('reg-email').value;
+    const username = document.getElementById('reg-username').value.trim();
+    const email = usernameToEmail(username);
     const password = document.getElementById('reg-password').value;
     const role = document.getElementById('reg-role').value;
+
+    // Check if username already exists in profiles
+    const { data: existingUser } = await supabaseClient
+        .from('profiles')
+        .select('username')
+        .eq('username', username)
+        .single();
+
+    if (existingUser) {
+        showToast('Username already taken. Choose another.', 'error');
+        return;
+    }
 
     const { data, error } = await supabaseClient.auth.signUp({ email, password });
     if (error) {
@@ -118,7 +139,7 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
 
     if (data.user) {
         const { error: profileError } = await supabaseClient.from('profiles').insert([
-            { id: data.user.id, email: email, role: role }
+            { id: data.user.id, username: username, role: role }
         ]);
 
         if (profileError) {
@@ -141,9 +162,9 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 
 function updateSidebarUser() {
     if (!userProfile) return;
-    document.getElementById('user-email-display').textContent = userProfile.email;
+    document.getElementById('user-display').textContent = `@${userProfile.username}`;
     document.getElementById('user-role-badge').textContent = userProfile.role.toUpperCase();
-    document.getElementById('user-avatar').textContent = userProfile.email.charAt(0).toUpperCase();
+    document.getElementById('user-avatar').textContent = userProfile.username.charAt(0).toUpperCase();
 }
 
 async function showManagerDashboard() {
@@ -162,14 +183,14 @@ async function loadAssignees() {
     if (data) {
         allAssignees = data;
         const select = document.getElementById('task-assignee');
-        select.innerHTML = data.map(a => `<option value="${a.id}">${a.email}</option>`).join('');
+        select.innerHTML = data.map(a => `<option value="${a.id}">${a.username}</option>`).join('');
     }
 }
 
 async function loadTasks() {
     const { data, error } = await supabaseClient
         .from('tasks')
-        .select('*, assignee:assignee_id(email), manager:manager_id(email)')
+        .select('*, assignee:assignee_id(username), manager:manager_id(username)')
         .order('schedule_date', { ascending: true });
 
     if (data) {
@@ -184,7 +205,7 @@ async function loadTasks() {
 
 function renderManagerTasks() {
     const search = document.getElementById('mgr-search').value.toLowerCase();
-    const filtered = allTasks.filter(t => t.title.toLowerCase().includes(search) || (t.assignee && t.assignee.email.toLowerCase().includes(search)));
+    const filtered = allTasks.filter(t => t.title.toLowerCase().includes(search) || (t.assignee && t.assignee.username.toLowerCase().includes(search)));
 
     const tbody = document.getElementById('mgr-task-list');
     document.getElementById('mgr-total-tasks').textContent = allTasks.length;
@@ -203,7 +224,7 @@ function renderManagerTasks() {
                 <div class="text-muted small">${escapeHtml(t.description || '')}</div>
             </td>
             <td>${t.schedule_date}</td>
-            <td>${t.assignee ? t.assignee.email : 'Unknown'}</td>
+            <td>@${t.assignee ? t.assignee.username : 'Unknown'}</td>
             <td>
                 <span class="status-badge ${t.status}">${t.status.toUpperCase()}</span>
             </td>
@@ -240,7 +261,7 @@ function renderAssigneeTasks() {
                 <div class="text-muted small">${escapeHtml(t.description || '')}</div>
             </td>
             <td>${t.schedule_date}</td>
-            <td>${t.manager ? t.manager.email : 'Manager'}</td>
+            <td>@${t.manager ? t.manager.username : 'Manager'}</td>
             <td>
                 <span class="status-badge ${t.status}">${t.status.toUpperCase()}</span>
             </td>
@@ -297,7 +318,7 @@ document.getElementById('task-form').addEventListener('submit', async (e) => {
     const title = document.getElementById('task-title').value;
     const description = document.getElementById('task-desc').value;
     const schedule_date = document.getElementById('task-date').value;
-    const assignee_id = document.getElementById('task-assign-assignee').value; // mapped correctly
+    const assignee_id = document.getElementById('task-assignee').value;
 
     const { error } = await supabaseClient.from('tasks').insert([{
         title,
