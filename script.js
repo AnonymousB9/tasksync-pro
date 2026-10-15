@@ -1,22 +1,36 @@
-// Hardcoded Supabase Credentials (users never need to configure anything)
-const SUPABASE_URL = 'https://jakcecrvtwbwyhdaqqqf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impha2NlY3J2dHdid3loZGFxcXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNDY4MDUsImV4cCI6MjEwNzYyMjgwNX0.xGHT1b8kBCjFlijmoRXR2mHn5c7N5ZalXcrqZ0REAxg';
+// Hardcoded Supabase Credentials
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let userProfile = null;
 let allTasks = [];
 let allAssignees = [];
+let currentTimetableTab = 'weekday';
+let allTimetableSlots = [];
 
-// Helper function to map usernames to internal emails
 function usernameToEmail(username) {
     return `${username.trim().toLowerCase()}@app.local`;
 }
 
-// Initialize App on load
 window.addEventListener('DOMContentLoaded', () => {
     checkUserSession();
+    setupEventListeners();
 });
+
+function setupEventListeners() {
+    // Auth Forms
+    document.getElementById('login-form')?.addEventListener('submit', handleLogin);
+    document.getElementById('register-form')?.addEventListener('submit', handleRegister);
+    document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
+
+    // Task Form
+    document.getElementById('task-form')?.addEventListener('submit', handleTaskSubmit);
+
+    // Timetable Form
+    document.getElementById('timetable-form')?.addEventListener('submit', handleTimetableSubmit);
+}
 
 async function checkUserSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -56,7 +70,7 @@ function showAuthView() {
 }
 
 function switchAuthTab(tab) {
-    const btns = document.querySelectorAll('.tab-btn');
+    const btns = document.querySelectorAll('.tabs .tab-btn');
     btns.forEach(b => b.classList.remove('active'));
     if (tab === 'login') {
         btns[0].classList.add('active');
@@ -69,8 +83,7 @@ function switchAuthTab(tab) {
     }
 }
 
-// Login Event Listener
-document.getElementById('login-form').addEventListener('submit', async (e) => {
+async function handleLogin(e) {
     e.preventDefault();
     const username = document.getElementById('login-username').value;
     const email = usernameToEmail(username);
@@ -84,17 +97,15 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         showToast('Logged in successfully!', 'success');
         await fetchUserProfile();
     }
-});
+}
 
-// Register Event Listener
-document.getElementById('register-form').addEventListener('submit', async (e) => {
+async function handleRegister(e) {
     e.preventDefault();
     const username = document.getElementById('reg-username').value.trim();
     const email = usernameToEmail(username);
     const password = document.getElementById('reg-password').value;
     const role = document.getElementById('reg-role').value;
 
-    // Check if username already exists in profiles
     const { data: existingUser } = await supabaseClient
         .from('profiles')
         .select('username')
@@ -125,15 +136,15 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
             await fetchUserProfile();
         }
     }
-});
+}
 
-document.getElementById('logout-btn').addEventListener('click', async () => {
+async function handleLogout() {
     await supabaseClient.auth.signOut();
     currentUser = null;
     userProfile = null;
     showAuthView();
     showToast('Logged out', 'info');
-});
+}
 
 function updateSidebarUser() {
     if (!userProfile) return;
@@ -148,22 +159,29 @@ async function showManagerDashboard() {
     document.getElementById('manager-view').classList.remove('hidden');
     await loadAssignees();
     await loadTasks();
+    await loadTimetables();
+}
+
+async function showAssigneeDashboard() {
+    document.getElementById('auth-view').classList.add('hidden');
+    document.getElementById('manager-view').classList.add('hidden');
+    document.getElementById('assignee-view').classList.remove('hidden');
+    await loadTasks();
+    await loadTimetables();
 }
 
 async function loadAssignees() {
-    const { data, error } = await supabaseClient
+    const { data } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('role', 'assignee');
     if (data) {
         allAssignees = data;
-        const select = document.getElementById('task-assignee');
-        select.innerHTML = data.map(a => `<option value="${a.id}">${a.username}</option>`).join('');
     }
 }
 
 async function loadTasks() {
-    const { data, error } = await supabaseClient
+    const { data } = await supabaseClient
         .from('tasks')
         .select('*, assignee:assignee_id(username), manager:manager_id(username)')
         .order('schedule_date', { ascending: true });
@@ -208,13 +226,6 @@ function renderManagerTasks() {
             </td>
         </tr>
     `).join('');
-}
-
-async function showAssigneeDashboard() {
-    document.getElementById('auth-view').classList.add('hidden');
-    document.getElementById('manager-view').classList.add('hidden');
-    document.getElementById('assignee-view').classList.remove('hidden');
-    await loadTasks();
 }
 
 function renderAssigneeTasks() {
@@ -275,71 +286,14 @@ async function deleteTask(taskId) {
 }
 
 function openNewTaskModal() {
-    if (allAssignees.length === 0) {
-        showToast('No assignees available in the system yet.', 'error');
-        return;
-    }
     document.getElementById('task-form').reset();
     document.getElementById('task-date').valueAsDate = new Date();
-    document.getElementById('task-modal').style.display = 'flex';
-}
-
-function closeNewTaskModal() {
-    document.getElementById('task-modal').style.display = 'none';
-}
-
-document.getElementById('task-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('task-title').value;
-    const description = document.getElementById('task-desc').value;
-    const schedule_date = document.getElementById('task-date').value;
-    const assignee_id = document.getElementById('task-assignee').value;
-
-    const { error } = await supabaseClient.from('tasks').insert([{
-        title,
-        description,
-        schedule_date,
-        assignee_id,
-        manager_id: currentUser.id,
-        status: 'pending'
-    }]);
-
-    if (error) {
-        showToast(error.message, 'error');
-    } else {
-        showToast('Task assigned successfully!', 'success');
-        closeNewTaskModal();
-        await loadTasks();
-    }
-});
-
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = `toast show ${type}`;
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3500);
-}
-
-function escapeHtml(str) {
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-}
-async function openNewTaskModal() {
-    document.getElementById('task-form').reset();
-    document.getElementById('task-date').valueAsDate = new Date();
-    
     const assigneeSelectGroup = document.getElementById('task-assignee').closest('.form-group');
 
     if (userProfile.role === 'assignee') {
-        // Hide the assignee select dropdown for assignees since they are assigning it to themselves
         assigneeSelectGroup.style.display = 'none';
     } else {
         assigneeSelectGroup.style.display = 'block';
-        if (allAssignees.length === 0) {
-            showToast('No assignees available in the system yet.', 'error');
-            return;
-        }
         const select = document.getElementById('task-assignee');
         select.innerHTML = allAssignees.map(a => `<option value="${a.id}">${a.username}</option>`).join('');
     }
@@ -347,24 +301,18 @@ async function openNewTaskModal() {
     document.getElementById('task-modal').style.display = 'flex';
 }
 
-document.getElementById('task-form').addEventListener('submit', async (e) => {
+function closeNewTaskModal() {
+    document.getElementById('task-modal').style.display = 'none';
+}
+
+async function handleTaskSubmit(e) {
     e.preventDefault();
     const title = document.getElementById('task-title').value;
     const description = document.getElementById('task-desc').value;
     const schedule_date = document.getElementById('task-date').value;
 
-    let assignee_id;
-    let manager_id;
-
-    if (userProfile.role === 'assignee') {
-        assignee_id = currentUser.id;
-        // If assignee creates it for themselves, we can set manager_id to themselves or a system ID, 
-        // but let's set manager_id to currentUser.id so RLS policy passes.
-        manager_id = currentUser.id; 
-    } else {
-        assignee_id = document.getElementById('task-assignee').value;
-        manager_id = currentUser.id;
-    }
+    let assignee_id = userProfile.role === 'assignee' ? currentUser.id : document.getElementById('task-assignee').value;
+    let manager_id = currentUser.id;
 
     const { error } = await supabaseClient.from('tasks').insert([{
         title,
@@ -382,4 +330,118 @@ document.getElementById('task-form').addEventListener('submit', async (e) => {
         closeNewTaskModal();
         await loadTasks();
     }
-});
+}
+
+// --- TIMETABLE FUNCTIONS ---
+
+async function loadTimetables() {
+    const { data, error } = await supabaseClient
+        .from('timetables')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('time_slot', { ascending: true });
+
+    if (error) {
+        console.error('Error loading timetables:', error);
+        return;
+    }
+
+    if (data) {
+        allTimetableSlots = data;
+        renderTimetable();
+    }
+}
+
+function switchTimetableTab(type) {
+    currentTimetableTab = type;
+    const activeView = userProfile.role === 'manager' ? 'manager-view' : 'assignee-view';
+    const btns = document.querySelectorAll(`#${activeView} .timetable-tabs .tab-btn`);
+    
+    btns.forEach(b => b.classList.remove('active'));
+    if (type === 'weekday') {
+        btns[0]?.classList.add('active');
+    } else {
+        btns[1]?.classList.add('active');
+    }
+    renderTimetable();
+}
+
+function renderTimetable() {
+    const activeView = userProfile.role === 'manager' ? 'manager-view' : 'assignee-view';
+    const tbody = document.querySelector(`#${activeView} #timetable-list`);
+    if (!tbody) return;
+
+    const filtered = allTimetableSlots.filter(t => t.day_type === currentTimetableTab);
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center">No timetable slots added for ${currentTimetableTab}s yet.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(t => `
+        <tr>
+            <td><strong>${escapeHtml(t.time_slot)}</strong></td>
+            <td>${escapeHtml(t.activity)}</td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="deleteTimetableSlot('${t.id}')"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openTimetableModal() {
+    document.getElementById('timetable-form').reset();
+    document.getElementById('tt-day-type').value = currentTimetableTab;
+    document.getElementById('timetable-modal').style.display = 'flex';
+}
+
+function closeTimetableModal() {
+    document.getElementById('timetable-modal').style.display = 'none';
+}
+
+async function handleTimetableSubmit(e) {
+    e.preventDefault();
+    const day_type = document.getElementById('tt-day-type').value;
+    const time_slot = document.getElementById('tt-time').value;
+    const activity = document.getElementById('tt-activity').value;
+
+    const { error } = await supabaseClient.from('timetables').insert([{
+        user_id: currentUser.id,
+        day_type: day_type,
+        time_slot: time_slot,
+        activity: activity
+    }]);
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Timetable slot added!', 'success');
+        closeTimetableModal();
+        await loadTimetables();
+    }
+}
+
+async function deleteTimetableSlot(id) {
+    if (!confirm('Delete this timetable slot?')) return;
+    const { error } = await supabaseClient.from('timetables').delete().eq('id', id);
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Slot removed', 'success');
+        await loadTimetables();
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = `toast show ${type}`;
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3500);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
