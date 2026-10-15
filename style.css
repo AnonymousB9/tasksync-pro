@@ -24,6 +24,7 @@ body {
     background-color: var(--bg-main);
     color: var(--text-main);
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 .hidden {
@@ -34,6 +35,7 @@ body {
 .app-container {
     display: flex;
     min-height: 100vh;
+    width: 100%;
 }
 
 /* Sidebar */
@@ -45,6 +47,8 @@ body {
     flex-direction: column;
     padding: 20px;
     position: fixed;
+    top: 0;
+    left: 0;
     height: 100vh;
     z-index: 10;
     transition: transform 0.3s ease;
@@ -80,6 +84,7 @@ body {
     align-items: center;
     justify-content: center;
     font-weight: bold;
+    flex-shrink: 0;
 }
 
 .details {
@@ -136,7 +141,8 @@ body {
     flex-grow: 1;
     margin-left: 260px;
     padding: 30px;
-    transition: margin 0.3s ease;
+    width: calc(100% - 260px);
+    transition: all 0.3s ease;
 }
 
 /* Auth View Center Card */
@@ -145,11 +151,12 @@ body {
     align-items: center;
     justify-content: center;
     min-height: calc(100vh - 60px);
+    width: 100%;
 }
 
 .auth-card {
     background: var(--card-bg);
-    padding: 40px;
+    padding: 30px;
     border-radius: 12px;
     box-shadow: var(--shadow);
     width: 100%;
@@ -164,6 +171,7 @@ body {
 .auth-header h2 {
     color: var(--primary);
     margin-bottom: 8px;
+    font-size: 1.5rem;
 }
 
 .auth-header p {
@@ -286,24 +294,25 @@ body {
 }
 
 .content-header h1 {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     margin-bottom: 4px;
 }
 
 .content-header p {
     color: var(--text-muted);
+    font-size: 0.9rem;
 }
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
 .stat-card {
     background: var(--card-bg);
-    padding: 20px;
+    padding: 16px;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     display: flex;
@@ -312,14 +321,15 @@ body {
 }
 
 .stat-icon {
-    width: 50px;
-    height: 50px;
+    width: 45px;
+    height: 45px;
     border-radius: var(--radius);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     color: white;
+    flex-shrink: 0;
 }
 
 .bg-blue { background: #3b82f6; }
@@ -327,13 +337,13 @@ body {
 .bg-orange { background: var(--warning); }
 
 .stat-info h3 {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     margin-bottom: 2px;
 }
 
 .stat-info p {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
 }
 
 /* Cards & Tables */
@@ -345,7 +355,7 @@ body {
 }
 
 .card-header {
-    padding: 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
@@ -357,6 +367,7 @@ body {
 .table-responsive {
     width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -367,9 +378,9 @@ table {
 }
 
 th, td {
-    padding: 14px 20px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--border);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
 }
 
 th {
@@ -417,7 +428,7 @@ th {
 
 .modal-content {
     background: var(--card-bg);
-    padding: 30px;
+    padding: 24px;
     border-radius: 12px;
     width: 100%;
     max-width: 500px;
@@ -425,7 +436,8 @@ th {
 }
 
 .modal-content h2 {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    font-size: 1.25rem;
 }
 
 .modal-actions {
@@ -440,7 +452,10 @@ th {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    padding: 14px 24px;
+    left: 20px;
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 12px 20px;
     background: #1e293b;
     color: white;
     border-radius: var(--radius);
@@ -449,6 +464,7 @@ th {
     opacity: 0;
     transition: all 0.3s ease;
     z-index: 1000;
+    text-align: center;
 }
 
 .toast.show {
@@ -460,27 +476,18 @@ th {
 .toast.error { background: var(--danger); }
 .toast.info { background: var(--primary); }
 
-/* --- RESPONSIVE MEDIA QUERIES FOR MOBILE / TABLET --- */
+/* --- MOBILE RESPONSIVE FIXES --- */
 @media (max-width: 768px) {
     .sidebar {
-        width: 70px;
-        padding: 12px;
-    }
-    .sidebar .brand span,
-    .sidebar .details,
-    .sidebar .nav-links a span,
-    .sidebar-footer button span {
-        display: none;
-    }
-    .sidebar .user-info {
-        padding: 8px;
-        justify-content: center;
+        display: none; /* Hide sidebar completely on mobile auth/screens to prevent overlap */
     }
     .main-content {
-        margin-left: 70px;
+        margin-left: 0 !important;
+        width: 100% !important;
         padding: 16px;
     }
     .auth-card {
         padding: 20px;
+        margin: 0 auto;
     }
 }
